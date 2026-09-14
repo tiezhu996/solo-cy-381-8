@@ -128,15 +128,22 @@ function openEdit(plan: RecurringPlanInfo) {
   formDialog.value?.open(plan)
 }
 
-async function handleSaved(payload: RecurringPlanPayload) {
-  if (editingPlan.value) {
-    await planStore.updatePlan(editingPlan.value.id, payload)
-    ElMessage.success('周期计划已更新')
-  } else {
-    await planStore.createPlan({ ...payload, group_id: groupId })
-    ElMessage.success('周期计划已创建')
+// handleSaved 保存周期计划：成功才通过 done(true) 关闭弹窗并刷新列表；
+// 失败时 done(false) 保留弹窗与已填写内容，错误提示由 request 拦截器统一弹出，可直接修改重试。
+async function handleSaved(payload: RecurringPlanPayload, done: (ok: boolean) => void) {
+  try {
+    if (editingPlan.value) {
+      await planStore.updatePlan(editingPlan.value.id, payload)
+      ElMessage.success('周期计划已更新')
+    } else {
+      await planStore.createPlan({ ...payload, group_id: groupId })
+      ElMessage.success('周期计划已创建')
+    }
+    done(true)
+    await loadPlans()
+  } catch {
+    done(false)
   }
-  await loadPlans()
 }
 
 async function handlePause(row: RecurringPlanInfo) {

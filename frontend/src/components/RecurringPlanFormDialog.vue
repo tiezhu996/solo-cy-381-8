@@ -55,6 +55,12 @@
               移除
             </el-button>
           </div>
+          <div class="share-add">
+            <el-select v-model="addCandidateId" placeholder="选择要添加的成员" size="small" clearable style="width: 200px">
+              <el-option v-for="m in addableMembers" :key="m.user_id" :label="m.nickname + ' (' + m.username + ')'" :value="m.user_id" />
+            </el-select>
+            <el-button size="small" type="primary" plain :disabled="!addCandidateId" @click="addShare">添加参与人</el-button>
+          </div>
         </div>
       </el-form-item>
     </el-form>
@@ -66,7 +72,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { CategoryOptions, SplitTypeOptions, SplitType } from '@/constants'
@@ -81,12 +87,16 @@ interface ShareForm {
 }
 
 const props = defineProps<{ members: MemberInfo[]; plan?: RecurringPlanInfo | null }>()
-const emit = defineEmits<{ (e: 'saved', payload: RecurringPlanPayload): void }>()
+const emit = defineEmits<{ (e: 'saved', payload: RecurringPlanPayload, done: (ok: boolean) => void): void }>()
 
 const visible = ref(false)
 const submitting = ref(false)
 const formRef = ref<FormInstance>()
 const isEdit = ref(false)
+const addCandidateId = ref<number | undefined>()
+
+// 可补回的成员：群组中尚未列入参与人的成员（编辑时可重新选择并补回被移除的参与人）
+const addableMembers = computed(() => props.members.filter((m) => !form.shares.some((s) => s.user_id === m.user_id)))
 
 const form = reactive<{
   name: string
@@ -129,6 +139,7 @@ function buildShares() {
 
 function open(plan?: RecurringPlanInfo | null) {
   isEdit.value = !!plan
+  addCandidateId.value = undefined
   const firstMember = props.members[0]
   form.name = plan?.name || ''
   form.amount = plan?.amount || 1000
@@ -154,6 +165,14 @@ function removeShare(index: number) {
   form.shares.splice(index, 1)
 }
 
+// addShare 把选中的群组成员补回参与人列表（编辑时可恢复被移除的参与人）。
+function addShare() {
+  const member = props.members.find((m) => m.user_id === addCandidateId.value)
+  if (!member) return
+  form.shares.push({ user_id: member.user_id, nickname: member.nickname || member.username, ratio: 1, amount: 0 })
+  addCandidateId.value = undefined
+}
+
 async function handleSubmit() {
   if (!formRef.value) return
   const valid = await formRef.value.validate().catch(() => false)
@@ -176,12 +195,13 @@ async function handleSubmit() {
     })),
   }
   submitting.value = true
-  try {
-    emit('saved', payload)
-    visible.value = false
-  } finally {
+  // 提交期间保留弹窗与当前输入；由父组件保存完成后回调，仅成功时才关闭
+  emit('saved', payload, (ok: boolean) => {
     submitting.value = false
-  }
+    if (ok) {
+      visible.value = false
+    }
+  })
 }
 
 defineExpose({ open })
@@ -201,6 +221,11 @@ defineExpose({ open })
 }
 .share-row__name {
   width: 120px;
+}
+.share-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .form-tip {
   width: 100%;
