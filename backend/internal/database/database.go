@@ -38,6 +38,9 @@ func Connect(dsn string, log logger.Interface) (*gorm.DB, error) {
 		&model.ExpenseShare{},
 		&model.Settlement{},
 		&model.AuditLog{},
+		&model.RecurringPlan{},
+		&model.RecurringPlanShare{},
+		&model.RecurringPlanRun{},
 	); err != nil {
 		return nil, fmt.Errorf("auto migrate: %w", err)
 	}

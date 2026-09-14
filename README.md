@@ -29,6 +29,7 @@ docker compose up -d --build
 5. **账单历史查询**：按群组、时间范围、消费类别筛选，支持导出账单明细 CSV。
 6. **用户中心**：注册登录、头像昵称邮箱管理、我的群组列表、待结算提醒。
 7. **数据统计**：月度消费趋势、各类别占比、各成员消费排行（ECharts 图表）。
+8. **周期账单计划**：按月固定执行日自动生成消费（房租/水电等固定支出），同群组名称唯一；每个执行周期最多入账一笔（行锁 + 唯一索引幂等），月末无对应日期落到当月最后一天；支持暂停/恢复/移除，移除后已生成记录保留。
 
 ## 技术栈
 
@@ -58,7 +59,7 @@ cy-381/
 │   ├── internal/
 │   │   ├── config/config.go
 │   │   ├── database/database.go
-│   │   ├── model/            # 每个实体一个文件：user/group/group_member/expense/expense_share/settlement/audit_log
+│   │   ├── model/            # 每个实体一个文件：user/group/group_member/expense/expense_share/settlement/recurring_plan/audit_log
 │   │   ├── dto/              # 每个实体一个 DTO 文件
 │   │   ├── repository/       # 每个实体一个 repository 文件
 │   │   ├── service/          # 每个实体一个 service 文件（含事务与状态机）
@@ -75,9 +76,9 @@ cy-381/
 │   └── go.sum
 └── frontend/
     ├── src/
-    │   ├── api/              # auth/user/group/expense/settlement/stats/audit
-    │   ├── components/       # StatusBadge/EmptyState/DataTable/ConfirmDialog/SplitTypeTag/MoneyText/ExpenseFormDialog
-    │   ├── pages/            # 登录/注册/工作台/个人中心/群组/消费/结算/统计/审计
+    │   ├── api/              # auth/user/group/expense/settlement/stats/audit/recurringPlan
+    │   ├── components/       # StatusBadge/EmptyState/DataTable/ConfirmDialog/SplitTypeTag/MoneyText/ExpenseFormDialog/RecurringPlanFormDialog
+    │   ├── pages/            # 登录/注册/工作台/个人中心/群组/消费/周期计划/结算/统计/审计
     │   ├── stores/           # auth/group/expense/settlement/audit
     │   ├── hooks/            # useAuth/usePagination
     │   ├── utils/            # request/format
@@ -168,7 +169,22 @@ curl -sS http://localhost:19401/api/v1/groups/1/stats \
 curl -sS http://localhost:19401/api/v1/groups/1/expenses/export \
   -H "Authorization: Bearer $TOKEN" -o expenses.csv
 
-# 9. 审计日志（管理员）
+# 9. 新建周期账单计划（每月 1 日均摊房租）
+curl -sS -X POST http://localhost:19401/api/v1/groups/1/plans \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"房租","amount":3000,"category":"lodging","payer_id":1,"split_type":"equal","day_of_month":1,"shares":[{"user_id":1},{"user_id":2},{"user_id":3}]}'
+
+# 10. 周期计划列表（返回下次执行日/上次生成结果/启停状态，返回前自动到期生成）
+curl -sS http://localhost:19401/api/v1/groups/1/plans \
+  -H "Authorization: Bearer $TOKEN"
+
+# 11. 暂停 / 恢复 / 手动触发 / 移除周期计划
+curl -sS -X POST http://localhost:19401/api/v1/plans/1/pause -H "Authorization: Bearer $TOKEN"
+curl -sS -X POST http://localhost:19401/api/v1/plans/1/resume -H "Authorization: Bearer $TOKEN"
+curl -sS -X POST http://localhost:19401/api/v1/plans/1/run -H "Authorization: Bearer $TOKEN"
+curl -sS -X DELETE http://localhost:19401/api/v1/plans/1 -H "Authorization: Bearer $TOKEN"
+
+# 12. 审计日志（管理员）
 curl -sS http://localhost:19401/api/v1/audit-logs \
   -H "Authorization: Bearer $TOKEN"
 ```
@@ -185,12 +201,13 @@ curl -sS http://localhost:19401/api/v1/audit-logs \
 
 ## 核心实体与接口复用
 
-核心实体（≥4）：**用户 User**、**分账群组 Group**、**消费记录 Expense**、**结算建议 Settlement**、**审计日志 AuditLog**（辅助实体：群组成员 GroupMember、分摊明细 ExpenseShare）。
+核心实体（≥4）：**用户 User**、**分账群组 Group**、**消费记录 Expense**、**结算建议 Settlement**、**周期账单计划 RecurringPlan**、**审计日志 AuditLog**（辅助实体：群组成员 GroupMember、分摊明细 ExpenseShare、计划参与人 RecurringPlanShare、计划生成记录 RecurringPlanRun）。
 
 接口复用说明：
 - `GET /groups/:id/expenses` 与 `GET /groups/:id/expenses/export` 复用 `ExpenseService.List`（导出在 List 基础上转换 CSV）。
 - `GET /groups/:id/settlements`、`GET /groups/:id/balances` 与 `GET /settlements/pending` 复用成员校验 + 余额计算逻辑（`memberRepo.Exists` + `shareRepo.SumPaidByGroup/SumOwedByGroup`）。
 - `GET /groups/:id/stats` 与 `GET /groups/:id/balances` 复用 `ExpenseShareRepository.SumPaidByGroup/SumOwedByGroup`。
+- 周期账单计划生成消费复用 `ExpenseService.CreateWithTx`（同一事务内的分摊计算与校验）与 `ExpenseService.ValidateShares`；`GET /groups/:id/plans`、`GET /plans/:id`、`POST /plans/:id/run` 复用同一 `generateForPlan` 幂等生成逻辑。
 
 ## 横切关注点
 
@@ -296,7 +313,7 @@ curl -sS http://localhost:19401/api/v1/audit-logs \
 - `internal/constants/enums.go`：定义枚举与 `IsValidGroupStatus`
 - `internal/model/group.go`：`Group.Status`、`IsActive`
 - `internal/service/group_service.go`：`Archive` 状态流转、归档后禁止操作
-- `internal/service/expense_service.go` / `settlement_service.go`：归档群组禁止记账/结算
+- `internal/service/expense_service.go` / `settlement_service.go` / `recurring_plan_service.go`：归档群组禁止记账/结算/新建或修改计划
 - `internal/repository/group_repository.go`：成员数统计按 `active` 过滤
 - `internal/util/formatters.go`：`GroupStatusText`
 
@@ -304,7 +321,27 @@ curl -sS http://localhost:19401/api/v1/audit-logs \
 - `src/constants/index.ts`：`GroupStatus` / `GroupStatusOptions`
 - `src/components/StatusBadge.vue`：群组状态徽标
 - `src/pages/group/GroupDetail.vue`：状态展示与归档操作
+- `src/pages/plan/RecurringPlanList.vue`：归档群组隐藏新建与操作按钮
 - `src/utils/format.ts`：`groupStatusText`
+
+### 6. 周期账单计划状态 RecurringPlanStatus（active / paused / removed）
+
+后端出现位置：
+- `internal/constants/enums.go`：定义枚举与 `IsValidRecurringPlanStatus`、审计动作 `ActionPlan*`
+- `internal/model/recurring_plan.go`：`RecurringPlan.Status`、`IsActive/IsPaused/IsRemoved`
+- `internal/dto/recurring_plan_dto.go`：`RecurringPlanQuery.Status` 的 `oneof=active paused` 校验
+- `internal/service/recurring_plan_service.go`：暂停/恢复/移除状态机、停用与已移除计划不生成
+- `internal/repository/recurring_plan_repository.go`：`ListByGroup` 默认排除 `removed`、`ExistsName` 查重排除 `removed`
+- `internal/util/formatters.go`：`RecurringPlanStatusText` 中文文案
+- `internal/constants/error_codes.go`：`CodePlanNameExists` / `CodePlanStatusConflict`
+- `internal/constants/messages.go`：`MsgPlan*` / `MsgErrPlan*`
+- `internal/constants/log_templates.go`：`LogPlanCreated` 等 8 条模板
+
+前端出现位置：
+- `src/constants/index.ts`：`RecurringPlanStatus` / `RecurringPlanStatusOptions`
+- `src/components/StatusBadge.vue`：`kind="plan"` 状态徽标
+- `src/pages/plan/RecurringPlanList.vue`：状态筛选、暂停/恢复按钮显隐
+- `src/utils/format.ts`：`recurringPlanStatusText`
 
 ## 测试
 
@@ -313,7 +350,7 @@ cd backend
 go test ./...
 ```
 
-覆盖：分摊算法（`pkg/splitcalc/split_test.go`，表驱动）、用户仓储 CRUD、群组仓储、消费仓储（表驱动）、用户服务注册/登录（表驱动）、消费服务分摊/退款、结算服务生成与结算。
+覆盖：分摊算法（`pkg/splitcalc/split_test.go`，表驱动）、用户仓储 CRUD、群组仓储、消费仓储（表驱动）、用户服务注册/登录（表驱动）、消费服务分摊/退款、结算服务生成与结算、周期账单计划（名称唯一、月末日期钳制、到期幂等生成、暂停不生成、归档禁止、移除保留记录）。
 
 ## License
 

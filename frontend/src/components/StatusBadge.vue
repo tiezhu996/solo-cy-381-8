@@ -11,12 +11,13 @@ import {
   expenseStatusText,
   splitTypeText,
   categoryText,
+  recurringPlanStatusText,
 } from '@/utils/format'
-import { GroupStatus, SettlementStatus, ExpenseStatus, SplitType } from '@/constants'
+import { GroupStatus, SettlementStatus, ExpenseStatus, SplitType, RecurringPlanStatus } from '@/constants'
 
 const props = defineProps<{
   status: string
-  kind?: 'group' | 'settlement' | 'expense' | 'split' | 'category'
+  kind?: 'group' | 'settlement' | 'expense' | 'split' | 'category' | 'plan'
 }>()
 
 const tagType = computed<'primary' | 'success' | 'warning' | 'info' | 'danger'>(() => {
@@ -30,6 +31,8 @@ const tagType = computed<'primary' | 'success' | 'warning' | 'info' | 'danger'>(
       return s === ExpenseStatus.ACTIVE ? 'success' : 'danger'
     case 'split':
       return s === SplitType.EQUAL ? 'primary' : s === SplitType.RATIO ? 'warning' : 'success'
+    case 'plan':
+      return s === RecurringPlanStatus.ACTIVE ? 'success' : s === RecurringPlanStatus.PAUSED ? 'warning' : 'info'
     default:
       return 'info'
   }
@@ -47,6 +50,8 @@ const text = computed(() => {
       return splitTypeText(props.status)
     case 'category':
       return categoryText(props.status)
+    case 'plan':
+      return recurringPlanStatusText(props.status)
     default:
       return props.status
   }

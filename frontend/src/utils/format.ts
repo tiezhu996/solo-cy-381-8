@@ -6,6 +6,7 @@ import {
   SettlementStatus,
   SplitType,
   ExpenseStatus,
+  RecurringPlanStatus,
 } from '@/constants'
 
 export function formatMoney(value: number | string | null | undefined): string {
@@ -63,6 +64,15 @@ export function settlementStatusText(value: string): string {
   const map: Record<string, string> = {
     [SettlementStatus.PENDING]: '待结算',
     [SettlementStatus.SETTLED]: '已结算',
+  }
+  return map[value] || value
+}
+
+export function recurringPlanStatusText(value: string): string {
+  const map: Record<string, string> = {
+    [RecurringPlanStatus.ACTIVE]: '启用中',
+    [RecurringPlanStatus.PAUSED]: '已暂停',
+    [RecurringPlanStatus.REMOVED]: '已移除',
   }
   return map[value] || value
 }

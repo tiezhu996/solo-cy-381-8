@@ -23,4 +23,6 @@ const (
 	CodeSettlementInvalid    = 42203 // 结算建议无效
 	CodeNotGroupMember       = 40302 // 非群组成员
 	CodeTokenExpired         = 40102 // 令牌过期
+	CodePlanNameExists       = 40905 // 周期账单计划名称已存在
+	CodePlanStatusConflict   = 40906 // 周期账单计划状态冲突
 )

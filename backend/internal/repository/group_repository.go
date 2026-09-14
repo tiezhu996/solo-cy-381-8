@@ -69,6 +69,21 @@ func (r *GroupRepository) LockByID(id uint) (*model.Group, error) {
 	return &g, nil
 }
 
+// LockByIDTx 在既有事务内行级锁查询群组（锁随事务提交才释放）。
+func (r *GroupRepository) LockByIDTx(tx *gorm.DB, id uint) (*model.Group, error) {
+	if tx == nil {
+		return r.LockByID(id)
+	}
+	var g model.Group
+	if err := tx.Clauses(lockClause).First(&g, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrGroupNotFound
+		}
+		return nil, fmt.Errorf("lock group by id in tx: %w", err)
+	}
+	return &g, nil
+}
+
 // ListByUser 查询用户参与的群组（含成员数）。
 func (r *GroupRepository) ListByUser(userID uint, page, pageSize int) ([]model.Group, int64, error) {
 	var groups []model.Group

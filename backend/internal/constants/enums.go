@@ -53,6 +53,15 @@ const (
 	SettlementSettled SettlementStatus = "settled" // 已结算
 )
 
+// RecurringPlanStatus 周期账单计划状态枚举
+type RecurringPlanStatus string
+
+const (
+	PlanActive  RecurringPlanStatus = "active"  // 启用中
+	PlanPaused  RecurringPlanStatus = "paused"  // 已暂停
+	PlanRemoved RecurringPlanStatus = "removed" // 已移除
+)
+
 // AuditAction 审计动作枚举
 type AuditAction string
 
@@ -71,6 +80,13 @@ const (
 	ActionExpenseExport      AuditAction = "expense.export"
 	ActionSettlementGenerate AuditAction = "settlement.generate"
 	ActionSettlementSettle   AuditAction = "settlement.settle"
+	ActionPlanCreate         AuditAction = "plan.create"
+	ActionPlanUpdate         AuditAction = "plan.update"
+	ActionPlanPause          AuditAction = "plan.pause"
+	ActionPlanResume         AuditAction = "plan.resume"
+	ActionPlanRemove         AuditAction = "plan.remove"
+	ActionPlanRun            AuditAction = "plan.run"
+	ActionPlanGenerate       AuditAction = "plan.generate"
 	ActionUserUpdate         AuditAction = "user.update"
 	ActionUserRole           AuditAction = "user.role"
 )
@@ -111,4 +127,13 @@ func IsValidExpenseStatus(s string) bool {
 // IsValidSettlementStatus 校验结算状态
 func IsValidSettlementStatus(s string) bool {
 	return SettlementStatus(s) == SettlementPending || SettlementStatus(s) == SettlementSettled
+}
+
+// IsValidRecurringPlanStatus 校验周期账单计划状态
+func IsValidRecurringPlanStatus(s string) bool {
+	switch RecurringPlanStatus(s) {
+	case PlanActive, PlanPaused, PlanRemoved:
+		return true
+	}
+	return false
 }

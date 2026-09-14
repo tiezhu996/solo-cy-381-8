@@ -15,5 +15,8 @@ func migrateAll(db *gorm.DB) error {
 		&model.ExpenseShare{},
 		&model.Settlement{},
 		&model.AuditLog{},
+		&model.RecurringPlan{},
+		&model.RecurringPlanShare{},
+		&model.RecurringPlanRun{},
 	)
 }

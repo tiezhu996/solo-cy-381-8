@@ -19,25 +19,31 @@
       </div>
     </el-card>
     <el-row :gutter="16" class="group-detail__nav">
-      <el-col :span="6">
+      <el-col :span="4">
         <el-card shadow="never" class="nav-card" @click="router.push(`/groups/${groupId}/expenses`)">
           <el-icon :size="26" color="#409eff"><List /></el-icon>
           <span>消费记录</span>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :span="5">
+        <el-card shadow="never" class="nav-card" @click="router.push(`/groups/${groupId}/plans`)">
+          <el-icon :size="26" color="#b88230"><Calendar /></el-icon>
+          <span>周期计划</span>
+        </el-card>
+      </el-col>
+      <el-col :span="5">
         <el-card shadow="never" class="nav-card" @click="router.push(`/groups/${groupId}/settlements`)">
           <el-icon :size="26" color="#67c23a"><Money /></el-icon>
           <span>智能结算</span>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :span="5">
         <el-card shadow="never" class="nav-card" @click="router.push(`/groups/${groupId}/stats`)">
           <el-icon :size="26" color="#e6a23c"><TrendCharts /></el-icon>
           <span>数据统计</span>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :span="5">
         <el-card shadow="never" class="nav-card" @click="router.push(`/groups/${groupId}/members`)">
           <el-icon :size="26" color="#909399"><UserFilled /></el-icon>
           <span>成员管理</span>
@@ -69,7 +75,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { List, Money, TrendCharts, UserFilled } from '@element-plus/icons-vue'
+import { Calendar, List, Money, TrendCharts, UserFilled } from '@element-plus/icons-vue'
 import { useGroupStore } from '@/stores/group'
 import { useAuthStore } from '@/stores/auth'
 import StatusBadge from '@/components/StatusBadge.vue'

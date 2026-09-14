@@ -13,6 +13,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'groups/:id', name: 'GroupDetail', component: () => import('@/pages/group/GroupDetail.vue') },
       { path: 'groups/:id/members', name: 'GroupMembers', component: () => import('@/pages/group/GroupMembers.vue') },
       { path: 'groups/:id/expenses', name: 'ExpenseList', component: () => import('@/pages/expense/ExpenseList.vue') },
+      { path: 'groups/:id/plans', name: 'RecurringPlanList', component: () => import('@/pages/plan/RecurringPlanList.vue') },
       { path: 'groups/:id/settlements', name: 'SettlementList', component: () => import('@/pages/settlement/SettlementList.vue') },
       { path: 'groups/:id/stats', name: 'GroupStats', component: () => import('@/pages/stats/GroupStats.vue') },
       { path: 'audit-logs', name: 'AuditLogs', component: () => import('@/pages/audit/AuditLogs.vue'), meta: { admin: true } },

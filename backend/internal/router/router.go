@@ -34,6 +34,7 @@ func Setup(cfg *config.Config, db *gorm.DB, rdb *redis.Client, logger *slog.Logg
 	settleRepo := repository.NewSettlementRepository(db)
 	auditRepo := repository.NewAuditRepository(db)
 	statsRepo := repository.NewStatsRepository(db)
+	planRepo := repository.NewRecurringPlanRepository(db)
 
 	auditSvc := service.NewAuditService(auditRepo, logger)
 	userSvc := service.NewUserService(userRepo, jwtMgr, logger)
@@ -41,6 +42,7 @@ func Setup(cfg *config.Config, db *gorm.DB, rdb *redis.Client, logger *slog.Logg
 	expenseSvc := service.NewExpenseService(db, expenseRepo, memberRepo, groupRepo, userRepo, auditSvc, logger)
 	settleSvc := service.NewSettlementService(db, settleRepo, shareRepo, memberRepo, groupRepo, userRepo, auditSvc, logger)
 	statsSvc := service.NewStatsService(statsRepo, shareRepo, memberRepo, logger)
+	planSvc := service.NewRecurringPlanService(db, planRepo, groupRepo, memberRepo, expenseSvc, auditSvc, logger)
 
 	userHandler := handler.NewUserHandler(userSvc)
 	groupHandler := handler.NewGroupHandler(groupSvc)
@@ -48,6 +50,7 @@ func Setup(cfg *config.Config, db *gorm.DB, rdb *redis.Client, logger *slog.Logg
 	settleHandler := handler.NewSettlementHandler(settleSvc)
 	auditHandler := handler.NewAuditHandler(auditSvc, userRepo)
 	statsHandler := handler.NewStatsHandler(statsSvc)
+	planHandler := handler.NewRecurringPlanHandler(planSvc)
 
 	engine.GET("/healthz", func(c *gin.Context) {
 		util.OK(c, gin.H{"status": "healthy", "app": cfg.AppName, "env": cfg.Env})
@@ -62,6 +65,7 @@ func Setup(cfg *config.Config, db *gorm.DB, rdb *redis.Client, logger *slog.Logg
 		RegisterSettlementRoutes(v1, settleHandler, jwtMgr)
 		RegisterAuditRoutes(v1, auditHandler, jwtMgr)
 		RegisterStatsRoutes(v1, statsHandler, jwtMgr)
+		RegisterRecurringPlanRoutes(v1, planHandler, jwtMgr)
 	}
 	engine.NoRoute(middleware.NoRoute)
 	engine.NoMethod(middleware.NoMethod)

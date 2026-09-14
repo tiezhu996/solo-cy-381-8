@@ -38,53 +38,8 @@ func NewExpenseService(db *gorm.DB, expenseRepo *repository.ExpenseRepository, m
 func (s *ExpenseService) Create(userID uint, req *dto.CreateExpenseReq) (*model.Expense, error) {
 	var created *model.Expense
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		group, err := s.groupRepo.LockByID(req.GroupID)
+		expense, err := s.CreateWithTx(tx, userID, req)
 		if err != nil {
-			return err
-		}
-		if !group.IsActive() {
-			return util.NewAppError(constants.CodeConflict, "群组 group 已归档，无法添加消费记录 expense", nil)
-		}
-		if err := s.ensureMember(tx, req.GroupID, userID); err != nil {
-			return err
-		}
-		if err := s.ensureMember(tx, req.GroupID, req.PayerID); err != nil {
-			return util.NewAppError(constants.CodeBadRequest, fmt.Sprintf("付款人 payer_id=%d 不是群组成员 member", req.PayerID), err)
-		}
-		shares, err := s.calcShares(tx, req.GroupID, req.Amount, req.SplitType, req.Shares)
-		if err != nil {
-			return err
-		}
-		paidAt, err := parsePaidAt(req.PaidAt)
-		if err != nil {
-			return util.NewAppError(constants.CodeValidationFailed, fmt.Sprintf("消费时间 paid_at 格式无效: %s", req.PaidAt), err)
-		}
-		expense := &model.Expense{
-			GroupID:    req.GroupID,
-			Title:      req.Title,
-			Amount:     util.Round2(req.Amount),
-			Category:   constants.ExpenseCategory(req.Category),
-			PayerID:    req.PayerID,
-			SplitType:  constants.SplitType(req.SplitType),
-			PaidAt:     paidAt,
-			ReceiptURL: req.ReceiptURL,
-			Status:     constants.ExpenseActive,
-			CreatedBy:  userID,
-		}
-		if err := s.expenseRepo.Create(tx, expense); err != nil {
-			return err
-		}
-		shareModels := make([]model.ExpenseShare, 0, len(shares))
-		for _, sh := range shares {
-			shareModels = append(shareModels, model.ExpenseShare{
-				ExpenseID:   expense.ID,
-				UserID:      sh.UserID,
-				ShareAmount: sh.ShareAmount,
-				Ratio:       sh.Ratio,
-				Status:      model.ShareUnsettled,
-			})
-		}
-		if err := s.expenseRepo.CreateShares(tx, shareModels); err != nil {
 			return err
 		}
 		created = expense
@@ -96,6 +51,60 @@ func (s *ExpenseService) Create(userID uint, req *dto.CreateExpenseReq) (*model.
 	s.logger.Info(fmt.Sprintf(constants.LogExpenseCreated, created.ID, created.GroupID, created.Title, created.Amount, created.Category, created.SplitType, created.PayerID))
 	s.auditSvc.Record(userID, string(constants.ActionExpenseCreate), "expense", fmt.Sprint(created.ID), "创建消费记录 "+created.Title, "")
 	return s.Get(userID, created.ID)
+}
+
+// CreateWithTx 在既有事务中创建消费记录（复用：手动记账与周期账单计划生成共用同一分摊与校验逻辑）。
+func (s *ExpenseService) CreateWithTx(tx *gorm.DB, userID uint, req *dto.CreateExpenseReq) (*model.Expense, error) {
+	group, err := s.groupRepo.LockByIDTx(tx, req.GroupID)
+	if err != nil {
+		return nil, err
+	}
+	if !group.IsActive() {
+		return nil, util.NewAppError(constants.CodeConflict, "群组 group 已归档，无法添加消费记录 expense", nil)
+	}
+	if err := s.ensureMember(tx, req.GroupID, userID); err != nil {
+		return nil, err
+	}
+	if err := s.ensureMember(tx, req.GroupID, req.PayerID); err != nil {
+		return nil, util.NewAppError(constants.CodeBadRequest, fmt.Sprintf("付款人 payer_id=%d 不是群组成员 member", req.PayerID), err)
+	}
+	shares, err := s.calcShares(tx, req.GroupID, req.Amount, req.SplitType, req.Shares)
+	if err != nil {
+		return nil, err
+	}
+	paidAt, err := parsePaidAt(req.PaidAt)
+	if err != nil {
+		return nil, util.NewAppError(constants.CodeValidationFailed, fmt.Sprintf("消费时间 paid_at 格式无效: %s", req.PaidAt), err)
+	}
+	expense := &model.Expense{
+		GroupID:    req.GroupID,
+		Title:      req.Title,
+		Amount:     util.Round2(req.Amount),
+		Category:   constants.ExpenseCategory(req.Category),
+		PayerID:    req.PayerID,
+		SplitType:  constants.SplitType(req.SplitType),
+		PaidAt:     paidAt,
+		ReceiptURL: req.ReceiptURL,
+		Status:     constants.ExpenseActive,
+		CreatedBy:  userID,
+	}
+	if err := s.expenseRepo.Create(tx, expense); err != nil {
+		return nil, err
+	}
+	shareModels := make([]model.ExpenseShare, 0, len(shares))
+	for _, sh := range shares {
+		shareModels = append(shareModels, model.ExpenseShare{
+			ExpenseID:   expense.ID,
+			UserID:      sh.UserID,
+			ShareAmount: sh.ShareAmount,
+			Ratio:       sh.Ratio,
+			Status:      model.ShareUnsettled,
+		})
+	}
+	if err := s.expenseRepo.CreateShares(tx, shareModels); err != nil {
+		return nil, err
+	}
+	return expense, nil
 }
 
 // Update 更新消费记录及其分摊明细（事务 + 群组行锁）。
@@ -281,6 +290,12 @@ func (s *ExpenseService) ExportCSV(userID, groupID uint, query *dto.ExpenseQuery
 	s.auditSvc.Record(userID, string(constants.ActionExpenseExport), "group", fmt.Sprint(groupID), "导出账单明细 CSV", "")
 	filename := fmt.Sprintf("expenses_%d_%s.csv", groupID, time.Now().Format("20060102"))
 	return buf.Bytes(), filename, nil
+}
+
+// ValidateShares 校验参与人与分摊配置（复用：周期账单计划创建/更新时复用同一校验逻辑）。
+func (s *ExpenseService) ValidateShares(groupID uint, amount float64, splitType string, inputs []dto.ShareInput) error {
+	_, err := s.calcShares(nil, groupID, amount, splitType, inputs)
+	return err
 }
 
 // calcShares 校验参与人并调用 splitcalc 计算分摊。

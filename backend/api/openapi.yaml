@@ -176,6 +176,76 @@ paths:
       security: [ { bearerAuth: [] } ]
       responses:
         '200': { description: ok }
+  /groups/{id}/plans:
+    get:
+      summary: 周期账单计划列表（筛选：status；返回前自动到期生成）
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200': { description: ok }
+    post:
+      summary: 新建周期账单计划（同群组名称唯一）
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                amount: { type: number }
+                category: { type: string, enum: [ dining, transport, lodging, entertain, other ] }
+                payer_id: { type: integer }
+                split_type: { type: string, enum: [ equal, ratio, amount ] }
+                day_of_month: { type: integer, minimum: 1, maximum: 31 }
+                shares: { type: array, items: { type: object } }
+      responses:
+        '201': { description: 创建成功 }
+  /plans/{id}:
+    get:
+      summary: 周期账单计划详情（含下次执行日与上次生成结果）
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: ok }
+    put:
+      summary: 更新周期账单计划
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: ok }
+    delete:
+      summary: 移除周期账单计划（已生成消费记录保持不变）
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: ok }
+  /plans/{id}/pause:
+    post:
+      summary: 暂停周期账单计划（暂停期间不生成）
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: ok }
+  /plans/{id}/resume:
+    post:
+      summary: 恢复周期账单计划（恢复后补跑到期周期）
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: ok }
+  /plans/{id}/run:
+    post:
+      summary: 手动触发到期生成（每个执行周期最多一笔，连续触发幂等）
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: ok }
   /audit-logs:
     get:
       summary: 审计日志列表（管理员）

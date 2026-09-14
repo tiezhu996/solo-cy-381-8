@@ -14,6 +14,11 @@ const (
 	MsgSettlementGenerated = "结算建议生成成功"
 	MsgSettlementSettled   = "结算完成"
 	MsgExportStarted       = "导出成功"
+	MsgPlanCreated         = "周期账单计划创建成功"
+	MsgPlanUpdated         = "周期账单计划更新成功"
+	MsgPlanPaused          = "周期账单计划已暂停"
+	MsgPlanResumed         = "周期账单计划已恢复"
+	MsgPlanRemoved         = "周期账单计划已移除"
 
 	MsgErrBind           = "请求体解析失败，请检查字段格式"
 	MsgErrValidation     = "参数校验失败，请检查必填字段与取值范围"
@@ -29,4 +34,6 @@ const (
 	MsgErrExpenseInvalid = "分摊参数无效，请检查参与人与分摊配置"
 	MsgErrShareMismatch  = "分摊金额合计与消费总额不一致"
 	MsgErrRateLimited    = "请求过于频繁，请稍后再试"
+	MsgErrPlanNameExists = "同一群组内已存在同名周期账单计划"
+	MsgErrPlanRemoved    = "周期账单计划已移除，无法操作"
 )

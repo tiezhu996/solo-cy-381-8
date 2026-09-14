@@ -97,6 +97,20 @@ func SettlementStatusText(s string) string {
 	}
 }
 
+// RecurringPlanStatusText 将周期账单计划状态枚举转为中文文案。
+func RecurringPlanStatusText(s string) string {
+	switch constants.RecurringPlanStatus(s) {
+	case constants.PlanActive:
+		return "启用中"
+	case constants.PlanPaused:
+		return "已暂停"
+	case constants.PlanRemoved:
+		return "已移除"
+	default:
+		return "未知"
+	}
+}
+
 // RoleText 将角色枚举转为中文文案。
 func RoleText(r string) string {
 	if constants.UserRole(r) == constants.RoleAdmin {

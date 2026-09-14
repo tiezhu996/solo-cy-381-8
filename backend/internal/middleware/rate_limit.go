@@ -57,6 +57,9 @@ func (r *RateLimiter) Middleware() gin.HandlerFunc {
 }
 
 func (r *RateLimiter) allowRedis(ctx context.Context, key string) (bool, error) {
+	if r.rdb == nil {
+		return false, fmt.Errorf("redis client is nil")
+	}
 	now := time.Now().Unix()
 	windowKey := fmt.Sprintf("%s:%d", key, now/60)
 	pipe := r.rdb.Pipeline()

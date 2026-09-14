@@ -33,6 +33,12 @@ export const SettlementStatus = {
   SETTLED: 'settled',
 } as const
 
+export const RecurringPlanStatus = {
+  ACTIVE: 'active',
+  PAUSED: 'paused',
+  REMOVED: 'removed',
+} as const
+
 export const ShareStatus = {
   UNSETTLED: 'unsettled',
   SETTLED: 'settled',
@@ -60,4 +66,9 @@ export const SettlementStatusOptions = [
 export const GroupStatusOptions = [
   { value: GroupStatus.ACTIVE, label: '进行中' },
   { value: GroupStatus.ARCHIVED, label: '已归档' },
+]
+
+export const RecurringPlanStatusOptions = [
+  { value: RecurringPlanStatus.ACTIVE, label: '启用中' },
+  { value: RecurringPlanStatus.PAUSED, label: '已暂停' },
 ]
